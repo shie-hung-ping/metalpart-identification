@@ -1,0 +1,28 @@
+# ── Python 虛擬環境（可用 uv sync 依 uv.lock 重建，不上傳）──
+.venv/
+
+# ── Python 編譯暫存 ──
+__pycache__/
+*.py[cod]
+
+# ── 測試 / 工具暫存 ──
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# ── 打包產物 ──
+build/
+dist/
+*.egg-info/
+
+# ── 樣本影像（不公開上傳；測試缺圖時會自動 skip）──
+samples/
+
+# ── IDE / 系統檔 ──
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store

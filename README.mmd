@@ -1,0 +1,154 @@
+%% README.mmd — 由 README.md 轉換而來的 Mermaid 圖；README.md 更新時需一併更新本檔
+%% 分區對應 README 五段：1 主旨與功能 / 2 口語說明 / 3 使用技術 / 4 系統架構 / 5 影像辨識流程
+flowchart TD
+
+    %% ===== 1. 專案主旨與功能 =====
+    subgraph S1["1. 專案主旨與功能：以傳統影像處理（不用機器學習）計算金屬零件數量"]
+        direction TB
+        F1["零件計數<br/>淺色 / 深色背景演算法"]
+        F2["ROI 框選<br/>只計數重心在框內的零件"]
+        F3["步驟可調<br/>啟用 / 停用、調參數、看中間結果"]
+        F4["結果檢視與匯出<br/>*_binary.png / *_result.png / *_parts.csv"]
+        F5["鏡像（翻面）配對"]
+        F6["鏡像位移測試"]
+        RUN["執行：uv run metalpartidbetification"]
+        RUN --> F1 --> F2 --> F3 --> F4
+        F1 --> F5 --> F6
+    end
+
+    %% ===== 2. 口語說明 =====
+    subgraph S2["2. 怎麼做到的（口語說明）"]
+        direction TB
+        H1["先把零件和背景分開<br/>零件變白、背景變黑"]
+        H2["清掉雜點、補好破洞"]
+        H3["把黏在一起的零件切開<br/>從每片中心往外長，碰到處就是分界"]
+        H4["檢查每塊是不是剛好一片<br/>挑最有把握的單片當樣板比對可疑輪廓"]
+        H5["合併結果並計數"]
+        H6["翻面配對：靠輪廓與位置找出同一片"]
+        H7["位移測試：「很有把握卻配錯」必須是 0 次"]
+        H1 --> H2 --> H3 --> H4 --> H5 --> H6 --> H7
+    end
+
+    %% ===== 3. 使用技術 =====
+    subgraph S3["3. 使用技術"]
+        direction LR
+        K1["Python 3.12+"]
+        K2["OpenCV、NumPy"]
+        K3["PySide6（Qt）"]
+        K4["uv / uv_build"]
+        K5["pytest"]
+    end
+
+    %% ===== 4. 系統架構與依賴方向 =====
+    subgraph S4["4. 系統架構 src/metalpartidbetification/（依賴方向由上而下）"]
+        direction TB
+        A_gui["gui/<br/>main_window、recognition_page、shift_test_page"]
+        A_app["app/<br/>流程協調（GUI 只呼叫這一層）"]
+        A_reg["algorithms/registry.py<br/>可選用的演算法組清單"]
+        A_light["algorithms/light/<br/>淺色背景步驟插件、presets.py"]
+        A_dark["algorithms/dark/<br/>深色背景步驟插件、presets.py"]
+        A_match["matching/<br/>鏡像配對（只依賴 core）"]
+        A_img["imaging/<br/>模擬翻面：鏡像 + 平移"]
+        A_shift["shift_test/<br/>情境、執行、報告（不依賴 GUI）"]
+        A_io["fileio/<br/>圖片讀寫（中文路徑）、結果匯出"]
+        A_rend["rendering/<br/>結果圖繪製"]
+        A_core["core/<br/>資料模型、PipelineStep、插件註冊、Pipeline 引擎"]
+
+        A_gui --> A_app
+        A_app --> A_reg
+        A_reg --> A_light
+        A_reg --> A_dark
+        A_app --> A_match
+        A_app --> A_img
+        A_app --> A_shift
+        A_app --> A_io
+        A_app --> A_rend
+        A_shift --> A_img
+        A_light --> A_core
+        A_dark --> A_core
+        A_match --> A_core
+        A_img --> A_core
+        A_io --> A_core
+        A_rend --> A_core
+
+        E0["新增影像技術：繼承 PipelineStep + @register_step<br/>宣告 requires / provides / param_specs<br/>加入 presets.py 的 DEFAULT_ORDER → GUI 自動產生參數元件"]
+        E1["light、dark、matching 互不引用<br/>tests/test_architecture.py 自動檢查"]
+        E0 -.-> A_light
+        E0 -.-> A_dark
+        E1 -.-> A_match
+    end
+
+    %% ===== 5. 影像辨識流程 =====
+    subgraph S5["5. 影像辨識流程"]
+        direction TB
+
+        subgraph S5L["淺色背景（零件與背景亮度接近）"]
+            direction TB
+            L0["前處理：灰階 → 雙邊濾波"]
+            L1["① 局部對比"]
+            L2["② 二值化"]
+            L3["③ 形態學去雜訊"]
+            L4["④ 距離轉換找種子"]
+            L5["⑤ 標記式分水嶺"]
+            L6["⑥ 區域分類"]
+            L7["⑦ 依邊界強度合併"]
+            L8["⑧ Blob 分析"]
+            L9["⑨ 輪廓信心評分（選樣板）"]
+            L10["⑩ 樣板比對（只處理有疑慮輪廓）"]
+            L11["⑪ 結果合併與計數"]
+            L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8 --> L9 --> L10 --> L11
+        end
+
+        subgraph S5D["深色背景（零件明顯比背景亮）"]
+            direction TB
+            D0["前處理：灰階 → 高斯模糊"]
+            D1["① 亮度二值化"]
+            D2["② 形態學（去灰塵、補孔）"]
+            D3["③ 排除邊界區域"]
+            D4["④ 接縫切割（黑帽運算）"]
+            D5["⑤ 距離轉換 + 分水嶺"]
+            D6["⑥ Blob 分析"]
+            D7["⑦ 輪廓信心評分（選樣板）"]
+            D8["⑧ 樣板比對（只處理有疑慮輪廓）"]
+            D9["⑨ 結果合併與計數"]
+            D0 --> D1 --> D2 --> D3 --> D4 --> D5 --> D6 --> D7 --> D8 --> D9
+        end
+
+        %% 自我樣板比對（兩組演算法共通概念，程式碼各自獨立）
+        T0["自我樣板比對：挑鏡像對稱度最高的完整單片當樣板<br/>只辨識疑似多片相連或碎片的輪廓；擺放的樣板不可重疊"]
+        L9 -.-> T0
+        D7 -.-> T0
+
+        subgraph S5M["鏡像（翻面）配對（勾選「自動鏡像比對」）"]
+            direction TB
+            M0["產生鏡像圖（模擬翻面，本階段無位移）"]
+            M1["以同一組演算法辨識鏡像"]
+            M2["① 推估鏡像方向<br/>三種方向比較零件遮罩重疊度"]
+            M3["② 輪廓重疊度 + 匈牙利演算法一對一配對"]
+            M4["③ 以中心點對齊的輪廓細節驗證"]
+            M5["鏡像結果 / 配對比較分頁<br/>分段耗時與總耗時"]
+            M0 --> M1 --> M2 --> M3 --> M4 --> M5
+        end
+        L11 --> M0
+        D9 --> M0
+
+        subgraph S5X["鏡像位移測試分頁（沿用辨識頁設定，測試期間鎖定辨識頁）"]
+            direction TB
+            X0["設定：鏡像方向、8 方向平移（可複選）<br/>位移幅度 0～100 px（超過 50 px 僅供對照）"]
+            X1["鏡像 + 整張平移（單一背景色補邊）"]
+            X2["辨識"]
+            X3["配對（含位移估算）"]
+            X4["逐片判定<br/>綠＝高信心正確 / 黃＝無法確定<br/>紅＝疑似多個候選 / 灰＝無法對應"]
+            X5["ROI 僅用於警告：ROI!＝位移可能過大、LOST＝可能遺失"]
+            X6["情境總表：「高信心但配錯」必須為 0<br/>匯出標記圖、逐片明細 CSV、情境總表 CSV、摘要 HTML"]
+            X0 --> X1 --> X2 --> X3 --> X4 --> X5 --> X6
+        end
+        M5 -.-> X0
+    end
+
+    %% 各段之間的關聯
+    F1 -->|淺色背景| L0
+    F1 -->|深色背景| D0
+    H1 -.-> S5
+    K2 -.-> S5
+    K3 -.-> A_gui
